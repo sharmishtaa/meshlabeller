@@ -53,7 +53,8 @@ class MainWindow(Qt.QMainWindow):
         self.add_vtk_window(9,1)
         self.add_forward_button('>>',9,2)
 
-        self.filenameline = self.add_title('DEFAULT',10,1)
+        #self.filenameline = self.add_title('DEFAULT',10,1)
+        self.filenameline = self.add_editor_center("DEFAULT",10,1)
         self.add_button('Continue Labelling',11,1)
         self.add_save_button('SAVE!',12,1)
         self.add_help_button('HELP',13,2)
@@ -101,6 +102,12 @@ class MainWindow(Qt.QMainWindow):
 
     def add_editor(self,str,x,y,w=1,h=1):
         line = QLineEdit(str)
+        self.vl.addWidget(line, x,y,w,h)
+        return line
+
+    def add_editor_center(self,str,x,y,w=1,h=1):
+        line = QLineEdit(str)
+        line.setAlignment(QtCore.Qt.AlignCenter)
         self.vl.addWidget(line, x,y,w,h)
         return line
 
