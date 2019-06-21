@@ -11,6 +11,15 @@ import trimesh
 import meshparty
 from meshparty import trimesh_io, trimesh_vtk
 
+class MyQVTKRenderWindowInteractor(QVTKRenderWindowInteractor):
+    def __init__(self, *args, **kwargs):
+        rw = vtk.vtkRenderWindow()
+        rw.SetStereoCapableWindow(False)
+        rw.StereoRenderOff()
+        rw.SetStereoTypeToCrystalEyes()
+        super(MyQVTKRenderWindowInteractor, self).__init__(*args,rw=rw, **kwargs)
+
+
 class MainWindow(Qt.QMainWindow):
     def __init__(self, parent = None):
 
@@ -151,7 +160,7 @@ class MainWindow(Qt.QMainWindow):
         print(filename)
         cvpath='https://storage.googleapis.com/neuroglancer/basil_v0/basil_full/seg-aug'
         mm = trimesh_io.MeshMeta()
-        mesh = mm.mesh(filename)
+        mesh = mm.mesh(filename=filename)
         #mesh_poly = trimesh_vtk.trimesh_to_vtk(mesh.vertices, mesh.faces, mesh.mesh_edges)
         #reader = vtk.vtkDataReader()
         #reader.SetFileName(filename)
@@ -160,7 +169,7 @@ class MainWindow(Qt.QMainWindow):
 
         # Create an actor
         # actor = vtk.vtkActor()
-        actor = trimesh_vtk.make_mesh_actor(mesh)
+        actor = trimesh_vtk.mesh_actor(mesh, opacity=float(self.opacityline.text()))
         if self.curId in self.LABELS.keys():
             actor.GetProperty().SetColor(0.5, 0.5, 0.0)
         else:
@@ -174,18 +183,25 @@ class MainWindow(Qt.QMainWindow):
         self.curActor = actor
         self.ren.AddActor(actor)
         self.ren.ResetCamera()
-        self.ren.SetBackground((.1,.1,.1))
+        self.ren.SetBackground((1.0,1.0,1.0))
         self.iren.Initialize()
         self.iren.Start()
 
     def add_vtk_window(self,x,y,w=1,h=1):
-        self.vtkWidget = QVTKRenderWindowInteractor(self.frame)
-        self.vl.addWidget(self.vtkWidget, x,y,w,h)
+        def vtkKeyPress(obj, event):
+            key = obj.GetKeySym()
+            self.curKeyValue = key
+            if key in self.hotkeys:
+                add_annotation_and_advance(self)
+            return
 
+        self.vtkWidget = MyQVTKRenderWindowInteractor(self.frame)
+        self.vl.addWidget(self.vtkWidget, x,y,w,h)
+        self.vtkWidget.GetRenderWindow().SetStereoCapableWindow(False)
+        self.vtkWidget.GetRenderWindow().StereoRenderOff()
         self.ren = vtk.vtkRenderer()
         self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
         self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
-
         # Create source
         source = vtk.vtkSphereSource()
         source.SetCenter(0, 0, 0)
@@ -200,9 +216,11 @@ class MainWindow(Qt.QMainWindow):
         actor.SetMapper(mapper)
         self.curActor = actor
 
-        #render
+        #renderse
         self.ren.AddActor(actor)
         self.ren.ResetCamera()
+        self.iren.AddObserver("KeyPressEvent", vtkKeyPress)
+
         self.iren.Initialize()
         self.iren.Start()
 
