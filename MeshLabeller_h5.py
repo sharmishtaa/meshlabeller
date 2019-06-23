@@ -10,6 +10,17 @@ import os
 import trimesh
 import meshparty
 from meshparty import trimesh_io, trimesh_vtk
+import h5py
+import numpy as np
+import argschema
+
+class MeshLabellerArgs(argschema.ArgSchema):
+    mesh_dir = argschema.InputDir(default = "data/meshes", description="path to folder with [ID].h5 files")
+    label_dir = argschema.InputDir(description= "path with folder of ID.h5 files with binary mask dataset")
+    id_csv = argschema.InputFile(default = "data/ids.csv", description="path to csv of ids,prelabel file")
+    output_file = argschema.OutputFile(default = "output.json", description= "path to save outptut json")
+    hotkey_file = argschema.InputFile(default = "data/hotkeys.csv", description = "file with hotkeys")
+    opacity = argschema.fields.Float(default=.5, description = "opacity of meshes")
 
 class MyQVTKRenderWindowInteractor(QVTKRenderWindowInteractor):
     def __init__(self, *args, **kwargs):
@@ -21,7 +32,13 @@ class MyQVTKRenderWindowInteractor(QVTKRenderWindowInteractor):
 
 
 class MainWindow(Qt.QMainWindow):
-    def __init__(self, parent = None):
+    def __init__(self, parent = None,
+                       mesh_dir = "data/meshes",
+                       label_dir = "", 
+                       id_csv = "data/ids.csv",
+                       output_file = "output.json",
+                       hotkey_file = "data/hotkeys.csv",
+                       opacity = .5):
 
         self.curId = 0000000
         self.curKeyValue = ''
@@ -46,13 +63,17 @@ class MainWindow(Qt.QMainWindow):
         self.add_title_left('Mesh File Directory:',1,0)
         self.add_title_left('CSV for ids:',2,0)
         self.add_title_left('Output File:',3,0)
-        self.add_title_left('Hot Key File (CSV):',4,0)
-        self.add_title_left('Mesh Opacity',5,0)
-        self.meshdirectoryline = self.add_editor("data/meshes",1,1,1,1)
-        self.idline = self.add_editor("data/ids.csv",2,1,1,1)
-        self.outputline = self.add_editor("output.json",3,1,1,1)
-        self.hotkeyline = self.add_editor("data/hotkeys.csv",4,1,1,1)
-        self.opacityline = self.add_editor("0.5",5,1,1,1)
+        self.add_title_left('mesh_labels',4,0)
+        self.add_title_left('Hot Key File (CSV):',5,0)
+        self.add_title_left('Mesh Opacity',6,0)
+        self.meshdirectoryline = self.add_editor(mesh_dir,1,1,1,1)
+        self.idline = self.add_editor(id_csv,2,1,1,1)
+        self.outputline = self.add_editor(output_file,3,1,1,1)
+        self.labelline =  self.add_editor(label_dir,4,1,1,1)
+        self.hotkeyline = self.add_editor(hotkey_file,5,1,1,1)
+        
+       
+        self.opacityline = self.add_editor("0.5",6,1,1,1)
         #self.opacityline.returnPressed.connect(self.testing123())
 
 
@@ -151,6 +172,14 @@ class MainWindow(Qt.QMainWindow):
     def set_vtk_window(self):
         self.curId = self.allids[self.curIndex]
         filename = self.meshdirectoryline.text()+'/'+self.curId+'.h5'
+        label_dir = self.labelline.text()
+        if len(label_dir)>0:
+            label_file = os.path.join(label_dir, self.curId+".h5")
+            with h5py.File(label_file, "r") as f:
+                labels = np.array(f['mask'])
+                print(labels.shape)
+        else:
+            labels = None
         if self.curId in self.LABELS.keys():
             labeltext = "Current Label = %s"%self.LABELS[self.curId]
         else :
@@ -161,6 +190,8 @@ class MainWindow(Qt.QMainWindow):
         cvpath='https://storage.googleapis.com/neuroglancer/basil_v0/basil_full/seg-aug'
         mm = trimesh_io.MeshMeta()
         mesh = mm.mesh(filename=filename)
+        print(mesh.vertices.shape)
+        print(labels.dtype)
         #mesh_poly = trimesh_vtk.trimesh_to_vtk(mesh.vertices, mesh.faces, mesh.mesh_edges)
         #reader = vtk.vtkDataReader()
         #reader.SetFileName(filename)
@@ -169,7 +200,7 @@ class MainWindow(Qt.QMainWindow):
 
         # Create an actor
         # actor = vtk.vtkActor()
-        actor = trimesh_vtk.mesh_actor(mesh, opacity=float(self.opacityline.text()))
+        actor = trimesh_vtk.mesh_actor(mesh, vertex_colors=labels.astype(np.float64), opacity=float(self.opacityline.text()))
         if self.curId in self.LABELS.keys():
             actor.GetProperty().SetColor(0.5, 0.5, 0.0)
         else:
@@ -336,8 +367,11 @@ def showhelpdialog(self):
    #print ("value of pressed message box button:", retval)
 
 if __name__ == "__main__":
+    mod = argschema.ArgSchemaParser(schema_type = MeshLabellerArgs)
+    mod.args.pop('log_level')
+    mod.args.pop('input_json')
     app = Qt.QApplication(sys.argv)
     app.setStyle('Fusion')
 
-    window = MainWindow()
+    window = MainWindow(**mod.args)
     sys.exit(app.exec_())
