@@ -214,6 +214,8 @@ class MainWindow(Qt.QMainWindow):
         self.curActor = actor
         self.ren.AddActor(actor)
         self.ren.ResetCamera()
+        cam1 = self.ren.GetActiveCamera()
+        cam1.Zoom(1.4)
         self.ren.SetBackground((1.0,1.0,1.0))
         self.iren.Initialize()
         self.iren.Start()
